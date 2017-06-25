@@ -19,24 +19,43 @@ def collect_ccds(filelist, out_filename):
     ccdlist = [primhdu]
 
     for fn in filelist:
+        logger.info("Reading and pre-reducing %s" % (fn))
         hdulist = pyfits.open(fn)
 
         #
         # Apply overscan subtraction
         #
+        empty = numpy.empty(hdulist[0].data.shape, dtype=numpy.float32)
+        empty[:,:] = numpy.NaN
+        raw = hdulist[0].data
+        hdr = hdulist[0].header
+        for i in range(1,5):
+            os_x1 = hdulist[0].header['T_OSMN%d1' % (i)]
+            os_x2 = hdulist[0].header['T_OSMX%d1' % (i)]
+            os_y1 = hdulist[0].header['T_OSMN%d1' % (i)]
+            os_y2 = hdulist[0].header['T_OSMX%d2' % (i)]
+            overscan_level = numpy.mean(raw[os_y1:os_y2, os_x1:os_x2])
+            logger.debug("overscan %d: %4d..%4d %4d..%4d --> %.1f" % (i, os_x1, os_x2, os_y1, os_y2, overscan_level))
+
+            im_x1 = hdr['T_EFMN%d1' % (i)]
+            im_x2 = hdr['T_EFMX%d1' % (i)]
+            im_y1 = hdr['T_EFMN%d2' % (i)]
+            im_y2 = hdr['T_EFMX%d2' % (i)]
+            empty[im_y1:im_y2, im_x1:im_x2] = raw[im_y1:im_y2, im_x1:im_x2] #- overscan_level
 
         #
         # Merge all single OTAs into a single, large MEF
         #
+
         ccdlist.append(
             pyfits.ImageHDU(
-                data=hdulist[0].data,
+                data=empty,
                 header=hdulist[0].header,
                 name="CCD.%03d" % (hdulist[0].header['DET-ID'])
             )
         )
-        sys.stdout.write(".")
-        sys.stdout.flush()
+        #sys.stdout.write(".")
+        #sys.stdout.flush()
 
     #
     # All work done, write to file

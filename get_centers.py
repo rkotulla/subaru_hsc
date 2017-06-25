@@ -20,8 +20,10 @@ if __name__ == "__main__":
         center = wcs.getCentreWCSCoords()
 
         # print fn, hdulist[0].header['T_CCDSN'], center[0], center[1]
-        data.append([int(hdulist[0].header['T_CCDSN']), float(center[0]), float(center[1])])
-
+        data.append([int(hdulist[0].header['DET-ID']), #T_CCDSN']),
+                     float(center[0]),
+                     float(center[1])])
+        # T_CCDSN
     data = numpy.array(data)
     # print data
     # numpy.savetxt(sys.stdout, data)
@@ -43,4 +45,6 @@ if __name__ == "__main__":
 
 
     sorted_ccdtypes = data_sorted[:,0].astype(numpy.int)
-    print sorted_ccdtypes
+    print "#",sorted_ccdtypes
+    print len(sorted_ccdtypes)
+    print len(set(sorted_ccdtypes))

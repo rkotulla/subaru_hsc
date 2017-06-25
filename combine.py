@@ -18,6 +18,7 @@ def collect_ccds(filelist, out_filename):
     primhdu = pyfits.PrimaryHDU()
     ccdlist = [primhdu]
 
+    ccdlist_prep = {}
     for fn in filelist:
         logger.info("Reading and pre-reducing %s" % (fn))
         hdulist = pyfits.open(fn)
@@ -47,15 +48,30 @@ def collect_ccds(filelist, out_filename):
         # Merge all single OTAs into a single, large MEF
         #
 
-        ccdlist.append(
-            pyfits.ImageHDU(
+        det_id = hdulist[0].header['DET-ID']
+        extname = "CCD.%03d" % (hdulist[0].header['DET-ID'])
+        ccdlist_prep[extname] = pyfits.ImageHDU(
                 data=empty,
                 header=hdulist[0].header,
-                name="CCD.%03d" % (hdulist[0].header['DET-ID'])
+                name=extname
             )
-        )
         #sys.stdout.write(".")
         #sys.stdout.flush()
+
+    #
+    # Now take all CCDs and insert them into the final image, sorted by
+    # distance from the center
+    #
+    ccd_order = [50, 49, 58, 41, 42, 57, 66, 33, 34, 65, 51, 48, 74, 25, 26,
+                 73, 59, 43, 40, 56, 67, 35, 32, 64, 81, 18, 19, 80, 75, 27,
+                 24, 72, 82, 20, 17, 79, 13, 86, 87, 12, 52, 47, 60, 44, 39,
+                 55, 68, 36, 31, 63, 14, 85, 88, 11, 76, 28, 23, 71, 7, 93,
+                 92, 6, 83, 21, 16, 78, 8, 94, 91, 5, 2, 98, 97, 1, 15, 84,
+                 89, 53, 10, 46, 61, 45, 38, 54, 69, 37, 30, 62, 3, 99, 96,
+                 0, 77, 29, 22, 9, 70, 95, 90, 4, 101, 103, 102, 100, 105, 111,
+                 110, 104, 107, 109, 108, 106,]
+    for _extname in ["CCD.%03d" % ccd for ccd in ccd_order][:16]:
+        ccdlist.append(ccdlist_prep[_extname])
 
     #
     # All work done, write to file

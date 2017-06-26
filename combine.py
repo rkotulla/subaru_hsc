@@ -13,7 +13,8 @@ import logging
 import argparse
 
 
-def collect_ccds(filelist, out_filename, bias=None):
+def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
+                 mask_saturation=None,):
     # print "--", "\n-- ".join(framelist[expid])
 
     primhdu = pyfits.PrimaryHDU()
@@ -31,19 +32,23 @@ def collect_ccds(filelist, out_filename, bias=None):
         empty[:,:] = numpy.NaN
         raw = hdulist[0].data
         hdr = hdulist[0].header
+
+        if (mask_saturation is not None):
+            raw[raw >= mask_saturation] = numpy.NaN
+
         for i in range(1,5):
             os_x1 = hdulist[0].header['T_OSMN%d1' % (i)]
             os_x2 = hdulist[0].header['T_OSMX%d1' % (i)]
             os_y1 = hdulist[0].header['T_OSMN%d1' % (i)]
             os_y2 = hdulist[0].header['T_OSMX%d2' % (i)]
-            overscan_level = numpy.mean(raw[os_y1:os_y2, os_x1:os_x2])
+            overscan_level = numpy.nanmean(raw[os_y1:os_y2, os_x1:os_x2])
             logger.debug("overscan %d: %4d..%4d %4d..%4d --> %.1f" % (i, os_x1, os_x2, os_y1, os_y2, overscan_level))
 
             im_x1 = hdr['T_EFMN%d1' % (i)]
             im_x2 = hdr['T_EFMX%d1' % (i)]
             im_y1 = hdr['T_EFMN%d2' % (i)]
             im_y2 = hdr['T_EFMX%d2' % (i)]
-            empty[im_y1:im_y2, im_x1:im_x2] = raw[im_y1:im_y2, im_x1:im_x2] #- overscan_level
+            empty[im_y1:im_y2, im_x1:im_x2] = raw[im_y1:im_y2, im_x1:im_x2] - overscan_level
 
         #
         # Merge all single OTAs into a single, large MEF
@@ -87,6 +92,20 @@ def collect_ccds(filelist, out_filename, bias=None):
                     print "An error occurred during bias subtraction for %s" % (ext.name)
                     pass
 
+    if (dark is not None):
+        pass
+
+    if (flat is not None):
+        flathdu = pyfits.open(flat)
+
+        for ext in out_hdulist:
+            if (ext.name in flathdu and ext.data is not None):
+                try:
+                    ext.data /= flathdu[ext.name].data
+                except:
+                    print "An error occurred during flat-field correction for %s" % (ext.name)
+                    pass
+
     #
     # All work done, write to file
     #
@@ -111,6 +130,12 @@ if __name__ == "__main__":
         help='list of input files')
     parser.add_argument('--bias', dest='bias',
                         default=None, help='BIAS filename')
+    parser.add_argument('--dark', dest='dark',
+                        default=None, help='DARK filename')
+    parser.add_argument('--flat', dest='flat',
+                        default=None, help='FLAT filename')
+    parser.add_argument('--masksat', dest='mask_saturation', type=float,
+                        default=None, help='mask all saturated pixels above this limit')
     parser.add_argument('--output', dest='output',
                         default=None, help='output filename')
     args = parser.parse_args()
@@ -132,6 +157,7 @@ if __name__ == "__main__":
         sys.stdout.write(".")
         sys.stdout.flush()
 
+    print "\n"
 
 
     for expid in framelist:
@@ -143,6 +169,8 @@ if __name__ == "__main__":
             out_filename = args.output
 
         collect_ccds(framelist[expid], out_filename=out_filename,
-                     bias=args.bias)
+                     bias=args.bias,
+                     dark=args.dark,
+                     flat=args.flat)
 
     podi_logging.shutdown_logging(logsetup)

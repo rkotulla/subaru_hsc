@@ -10,9 +10,10 @@ sys.path.append(qr_dir)
 
 import podi_logging
 import logging
+import argparse
 
 
-def collect_ccds(filelist, out_filename):
+def collect_ccds(filelist, out_filename, bias=None):
     # print "--", "\n-- ".join(framelist[expid])
 
     primhdu = pyfits.PrimaryHDU()
@@ -72,11 +73,23 @@ def collect_ccds(filelist, out_filename):
                  110, 104, 107, 109, 108, 106,]
     for _extname in ["CCD.%03d" % ccd for ccd in ccd_order][:16]:
         ccdlist.append(ccdlist_prep[_extname])
+    out_hdulist = pyfits.HDUList(ccdlist)
+
+
+    if (bias is not None):
+        biashdu = pyfits.open(bias)
+
+        for ext in out_hdulist:
+            if (ext.name in biashdu and ext.data is not None):
+                try:
+                    ext.data -= biashdu[ext.name].data
+                except:
+                    print "An error occurred during bias subtraction for %s" % (ext.name)
+                    pass
 
     #
     # All work done, write to file
     #
-    out_hdulist = pyfits.HDUList(ccdlist)
     if (out_filename is not None):
         out_hdulist.writeto(out_filename, clobber=True)
 
@@ -87,10 +100,26 @@ if __name__ == "__main__":
 
     framelist = {}
 
+    #
+    # Handle all command line stuff
+    #
+    parser = argparse.ArgumentParser(
+        description='Reduce Subaru-HSC frames.')
+    parser.add_argument(
+        'files', type=str, nargs='+', #nargs=1,
+        metavar='input.fits',
+        help='list of input files')
+    parser.add_argument('--bias', dest='bias',
+                        default=None, help='BIAS filename')
+    parser.add_argument('--output', dest='output',
+                        default=None, help='output filename')
+    args = parser.parse_args()
+
+
     logsetup = podi_logging.setup_logging()
     logger = logging.getLogger("SubaruHSC")
 
-    for fn in sys.argv[1:]:
+    for fn in args.files:
         hdulist = pyfits.open(fn)
 
         expid = hdulist[0].header['EXP-ID']
@@ -108,7 +137,12 @@ if __name__ == "__main__":
     for expid in framelist:
         logger.info("Working on exposure %s" % (expid))
 
-        out_filename = "%s_comb.fits" % (expid)
-        collect_ccds(framelist[expid], out_filename=out_filename)
+        if (args.output is None):
+            out_filename = "%s_comb.fits" % (expid)
+        else:
+            out_filename = args.output
+
+        collect_ccds(framelist[expid], out_filename=out_filename,
+                     bias=args.bias)
 
     podi_logging.shutdown_logging(logsetup)

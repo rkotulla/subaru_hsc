@@ -4,6 +4,7 @@ import numpy
 import os
 import sys
 import pyfits
+import scipy.ndimage
 
 from config import *
 sys.path.append(qr_dir)
@@ -16,6 +17,8 @@ import argparse
 def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
                  mask_saturation=None,):
     # print "--", "\n-- ".join(framelist[expid])
+
+    logger = logging.getLogger("HSCreduce")
 
     primhdu = pyfits.PrimaryHDU()
     ccdlist = [primhdu]
@@ -30,11 +33,13 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         #
         empty = numpy.empty(hdulist[0].data.shape, dtype=numpy.float32)
         empty[:,:] = numpy.NaN
-        raw = hdulist[0].data
+        raw = hdulist[0].data.astype(numpy.float32)
         hdr = hdulist[0].header
 
         if (mask_saturation is not None):
-            raw[raw >= mask_saturation] = numpy.NaN
+            saturation_mask = (raw >= mask_saturation).astype(numpy.int)
+            saturation_mask = scipy.ndimage.convolve(saturation_mask, numpy.ones((3,3)))
+            raw[saturation_mask > 1] = numpy.NaN
 
         for i in range(1,5):
             os_x1 = hdulist[0].header['T_OSMN%d1' % (i)]
@@ -171,6 +176,7 @@ if __name__ == "__main__":
         collect_ccds(framelist[expid], out_filename=out_filename,
                      bias=args.bias,
                      dark=args.dark,
-                     flat=args.flat)
+                     flat=args.flat,
+                     mask_saturation=args.mask_saturation,)
 
     podi_logging.shutdown_logging(logsetup)

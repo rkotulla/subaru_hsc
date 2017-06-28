@@ -101,16 +101,68 @@ if __name__ == "__main__":
             print "Re-using existing bias from %s" % (tmp_out)
         reduced_list.append(tmp_out)
 
-    master_fn = "bias.fits"
-    print "Creating %s" % (master_fn)
-    master_bias = podi_imcombine.imcombine(
-        input_filelist=reduced_list,
-        outputfile = master_fn,
-        operation="sigmaclipmean",
-    )
+    master_bias_fn = "bias.fits"
+    if (not os.path.isfile(master_bias_fn)):
+        print "Creating %s" % (master_bias_fn)
+        master_bias = podi_imcombine.imcombine(
+            input_filelist=reduced_list,
+            outputfile = master_bias_fn,
+            operation="sigmaclipmean",
+        )
+    else:
+        print "Master-bias (%s) already exists" % (master_bias_fn)
 
 
+    #
+    # Create all flat-fields
+    #
+    for filtername in flat_list:
 
+        for expid in flat_list[filtername]:
 
+            reduced_expid = expid[:-2]+"xx"
+            tmp_out = "tmp/nflat_%s.fits" % (reduced_expid)
+            if (not os.path.isfile(tmp_out)):
+                print "Creating normalized flat-field frame (--> %s)" % (tmp_out)
+                flat_hdu = hsc_combine.collect_ccds(
+                    filelist=framelist[expid],
+                    out_filename=None,
+                    bias=master_bias_fn,
+                    dark=None, flat=None, mask_saturation=None,
+                )
+
+                # compute average level in the central CCD
+                mean_flat_levels = []
+                for ccd in [50,58,49,57]:
+                    extname = "CCD.%03d" % (ccd)
+                    if (extname not in flat_hdu):
+                        continue
+                    mean_level = numpy.nanmean(flat_hdu[extname].data)
+                    mean_flat_levels.append(mean_level)
+                mean_flat_levels = numpy.array(mean_flat_levels)
+                flat_normalization = numpy.mean(mean_flat_levels)
+                print mean_flat_levels, "-->", flat_normalization
+
+                # normalize all detectors
+                for ext in flat_hdu:
+                    if ext.data is not None:
+                        ext.data /= flat_normalization
+
+                # save file for later
+                flat_hdu.writeto(tmp_out, clobber=True)
+            else:
+                print "Re-using existing flat from %s" % (tmp_out)
+            reduced_list.append(tmp_out)
+
+        #
+        # Now compute average flat-field
+        #
+        master_flat_fn = "flat_%s.fits" % (filtername)
+        print "Creating %s" % (master_flat_fn)
+        master_flat = podi_imcombine.imcombine(
+            input_filelist=reduced_list,
+            outputfile = master_flat_fn,
+            operation="sigmaclipmean",
+        )
 
     podi_logging.shutdown_logging(logsetup)

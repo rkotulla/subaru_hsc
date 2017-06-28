@@ -95,16 +95,19 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         if (os.path.isdir(bias)):
             bias = "%s/bias.fits" % (bias)
 
-        logger.info("Applying bias correction (%s)" % (bias))
-        biashdu = pyfits.open(bias)
+        if (os.path.isfile(bias)):
+            logger.info("Applying bias correction (%s)" % (bias))
+            biashdu = pyfits.open(bias)
 
-        for ext in out_hdulist:
-            if (ext.name in biashdu and ext.data is not None):
-                try:
-                    ext.data -= biashdu[ext.name].data
-                except:
-                    print "An error occurred during bias subtraction for %s" % (ext.name)
-                    pass
+            for ext in out_hdulist:
+                if (ext.name in biashdu and ext.data is not None):
+                    try:
+                        ext.data -= biashdu[ext.name].data
+                    except:
+                        print "An error occurred during bias subtraction for %s" % (ext.name)
+                        pass
+        else:
+            logger.warning("Bias file (%s) not found" % (bias))
 
     if (dark is not None):
         pass
@@ -114,17 +117,19 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         if (os.path.isdir(flat)):
             flat = "%s/flat_%s.fits" % (flat, filtername)
 
-        logger.info("Applying flat-field correction (%s)" % (flat))
-        flathdu = pyfits.open(flat)
+        if (os.path.isfile(flat)):
+            logger.info("Applying flat-field correction (%s)" % (flat))
+            flathdu = pyfits.open(flat)
 
-        for ext in out_hdulist:
-            if (ext.name in flathdu and ext.data is not None):
-                try:
-                    ext.data /= flathdu[ext.name].data
-                except:
-                    print "An error occurred during flat-field correction for %s" % (ext.name)
-                    pass
-
+            for ext in out_hdulist:
+                if (ext.name in flathdu and ext.data is not None):
+                    try:
+                        ext.data /= flathdu[ext.name].data
+                    except:
+                        print "An error occurred during flat-field correction for %s" % (ext.name)
+                        pass
+        else:
+            logger.warning("flat-field (%s) not found" % (flat))
     #
     # All work done, write to file
     #

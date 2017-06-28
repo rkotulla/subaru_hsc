@@ -15,7 +15,8 @@ import argparse
 
 
 def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
-                 mask_saturation=None,):
+                 mask_saturation=None,
+                 n_ccds=-1):
     # print "--", "\n-- ".join(framelist[expid])
 
     logger = logging.getLogger("HSCreduce")
@@ -25,7 +26,7 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
 
     ccdlist_prep = {}
     for fn in filelist:
-        logger.info("Reading and pre-reducing %s" % (fn))
+        logger.debug("Reading and pre-reducing %s" % (fn))
         hdulist = pyfits.open(fn)
 
         #
@@ -73,6 +74,7 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
     # Now take all CCDs and insert them into the final image, sorted by
     # distance from the center
     #
+    logger.info("Re-organizing CCDs")
     ccd_order = [50, 49, 58, 41, 42, 57, 66, 33, 34, 65, 51, 48, 74, 25, 26,
                  73, 59, 43, 40, 56, 67, 35, 32, 64, 81, 18, 19, 80, 75, 27,
                  24, 72, 82, 20, 17, 79, 13, 86, 87, 12, 52, 47, 60, 44, 39,
@@ -81,12 +83,19 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
                  89, 53, 10, 46, 61, 45, 38, 54, 69, 37, 30, 62, 3, 99, 96,
                  0, 77, 29, 22, 9, 70, 95, 90, 4, 101, 103, 102, 100, 105, 111,
                  110, 104, 107, 109, 108, 106,]
-    for _extname in ["CCD.%03d" % ccd for ccd in ccd_order][:16]:
+    _extnames = ["CCD.%03d" % ccd for ccd in ccd_order]
+    if (n_ccds > 0):
+        _extnames = _extnames[:n_ccds]
+    for _extname in _extnames:
         ccdlist.append(ccdlist_prep[_extname])
     out_hdulist = pyfits.HDUList(ccdlist)
 
 
     if (bias is not None):
+        if (os.path.isdir(bias)):
+            bias = "%s/bias.fits" % (bias)
+
+        logger.info("Applying bias correction (%s)" % (bias))
         biashdu = pyfits.open(bias)
 
         for ext in out_hdulist:
@@ -101,6 +110,11 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         pass
 
     if (flat is not None):
+        filtername = out_hdulist[1].header['FILTER01']
+        if (os.path.isdir(flat)):
+            flat = "%s/flat_%s.fits" % (flat, filtername)
+
+        logger.info("Applying flat-field correction (%s)" % (flat))
         flathdu = pyfits.open(flat)
 
         for ext in out_hdulist:
@@ -143,6 +157,8 @@ if __name__ == "__main__":
                         default=None, help='mask all saturated pixels above this limit')
     parser.add_argument('--output', dest='output',
                         default=None, help='output filename')
+    parser.add_argument('--nccds', dest='n_ccds', type=int,
+                        default=-1, help='limit the number of CCDs in output')
     args = parser.parse_args()
 
 
@@ -177,6 +193,8 @@ if __name__ == "__main__":
                      bias=args.bias,
                      dark=args.dark,
                      flat=args.flat,
-                     mask_saturation=args.mask_saturation,)
+                     mask_saturation=args.mask_saturation,
+                     n_ccds=args.n_ccds,
+                     )
 
     podi_logging.shutdown_logging(logsetup)

@@ -32,7 +32,7 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         #
         # Apply overscan subtraction
         #
-        empty = numpy.empty(hdulist[0].data.shape, dtype=numpy.float32)
+        empty = numpy.empty((4176,2048)) #hdulist[0].data.shape, dtype=numpy.float32)
         empty[:,:] = numpy.NaN
         raw = hdulist[0].data.astype(numpy.float32)
         hdr = hdulist[0].header
@@ -42,19 +42,32 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
             saturation_mask = scipy.ndimage.convolve(saturation_mask, numpy.ones((3,3)))
             raw[saturation_mask > 1] = numpy.NaN
 
+        target_coords = numpy.array([[0,0],
+                                     [0,0],
+                         [0,511],
+                         [0,1023],
+                         [0,1535]])
+
         for i in range(1,5):
             os_x1 = hdulist[0].header['T_OSMN%d1' % (i)]
             os_x2 = hdulist[0].header['T_OSMX%d1' % (i)]
             os_y1 = hdulist[0].header['T_OSMN%d1' % (i)]
             os_y2 = hdulist[0].header['T_OSMX%d2' % (i)]
-            overscan_level = numpy.nanmean(raw[os_y1:os_y2, os_x1:os_x2])
+            overscan_level = numpy.nanmean(raw[os_y1:os_y2+1, os_x1:os_x2+1])
             logger.debug("overscan %d: %4d..%4d %4d..%4d --> %.1f" % (i, os_x1, os_x2, os_y1, os_y2, overscan_level))
 
             im_x1 = hdr['T_EFMN%d1' % (i)]
             im_x2 = hdr['T_EFMX%d1' % (i)]
             im_y1 = hdr['T_EFMN%d2' % (i)]
             im_y2 = hdr['T_EFMX%d2' % (i)]
-            empty[im_y1:im_y2, im_x1:im_x2] = raw[im_y1:im_y2, im_x1:im_x2] - overscan_level
+            # empty[im_y1:im_y2, im_x1:im_x2] = raw[im_y1:im_y2, im_x1:im_x2] - overscan_level
+
+            tx1 = target_coords[i,1]
+            ty1 = target_coords[i,0]
+            empty[ ty1:(ty1+im_y2-im_y1+1), tx1:(tx1+(im_x2-im_x1+1))] =  raw[im_y1:im_y2+1, im_x1:im_x2+1] - overscan_level
+            # empty[ty1:(ty1 + os_y2 - os_y1), tx1:(tx1 + (os_x2 - os_x1))] = raw[
+            #                                                             im_y1:im_y2,
+            #                                                             im_x1:im_x2] - overscan_level
 
         #
         # Merge all single OTAs into a single, large MEF

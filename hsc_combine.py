@@ -36,6 +36,8 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         empty[:,:] = numpy.NaN
         raw = hdulist[0].data.astype(numpy.float32)
         hdr = hdulist[0].header
+        for key in ['BZERO', 'BLANK']:
+            if (key in hdr): del hdr[key]
 
         if (mask_saturation is not None):
             saturation_mask = (raw >= mask_saturation).astype(numpy.int)
@@ -76,7 +78,7 @@ def collect_ccds(filelist, out_filename, bias=None, dark=None, flat=None,
         det_id = hdulist[0].header['DET-ID']
         extname = "CCD.%03d" % (hdulist[0].header['DET-ID'])
         ccdlist_prep[extname] = pyfits.ImageHDU(
-                data=empty,
+                data=empty.astype(numpy.float32),
                 header=hdulist[0].header,
                 name=extname
             )
